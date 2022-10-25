@@ -1,0 +1,4 @@
+node_modules/
+vsc-extension-quickstart.md
+*.tmLanguage*
+!syntaxes/alola.tmLanguage.yaml

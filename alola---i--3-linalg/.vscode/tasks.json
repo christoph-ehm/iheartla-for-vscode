@@ -1,0 +1,37 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "generate tmLanguage JSON",
+			"type": "shell",
+			"command": "js-yaml ${workspaceFolder}/syntaxes/alola.tmLanguage.yaml > ${workspaceFolder}/syntaxes/alola.tmLanguage.json",
+			"problemMatcher": []
+		},
+		{
+			"label": "compile I❤️LA C++",
+			"type": "shell",
+			"command": "${config:iheartla.path} -o eigen ${file} && code -r \"$(basename \"${file}\").cpp\"",
+			"problemMatcher": []
+		},
+		{
+			"label": "compile I❤️LA Python",
+			"type": "shell",
+			"command": "${config:iheartla.path} -o numpy ${file} && code -r \"$(echo \"${file}\" | sed -E s/\\.[[:alnum:]]+$//).py\"",
+			"problemMatcher": []
+		},
+		{
+			"label": "compile I❤️LA LaTeX",
+			"type": "shell",
+			"command": "${config:iheartla.path} -o latex ${file} && code -r \"$(echo \"${file}\" | sed -E s/\\.[[:alnum:]]+$//).tex\"",
+			"problemMatcher": []
+		},
+		{
+			"label": "compile I❤️LA Matlab",
+			"type": "shell",
+			"command": "${config:iheartla.path} -o matlab ${file} && code -r \"$(echo \"${file}\" | sed -E s/\\.[[:alnum:]]+$//).m\"",
+			"problemMatcher": []
+		}
+	]
+}

@@ -1,0 +1,54 @@
+{
+    "name": "alola---i--3-linalg",
+    "displayName": "ALoLA - I <3 LinAlg",
+    "description": "Code generation from linear algebra formulas written as unicode text. See https://iheartla.github.io/ .",
+    "version": "0.0.1",
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.68.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "alola",
+                "aliases": [
+                    "I<3LA",
+                    "alola"
+                ],
+                "extensions": [
+                    ".lina"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "alola",
+                "scopeName": "source.alola",
+                "path": "./syntaxes/alola.tmLanguage.json"
+            }
+        ]
+    },
+    "// needs to run the vscode:prepublish script for using semantic highlighting": "",
+    "// main": "./compiled/extension.js",
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "lint": "eslint . --ext .ts,.tsx",
+        "watch": "tsc --watch -p ./"
+    },
+    "devDependencies": {
+        "@types/node": "^16.11.7",
+        "@types/vscode": "^1.42.0",
+        "@typescript-eslint/eslint-plugin": "^5.30.0",
+        "@typescript-eslint/parser": "^5.30.0",
+        "eslint": "^8.13.0",
+        "typescript": "^4.7.2"
+    },
+    "dependencies": {
+        "@stephen-riley/pcre2-wasm": "^1.2.4"
+    }
+}

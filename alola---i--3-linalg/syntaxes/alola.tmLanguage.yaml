@@ -1,0 +1,1125 @@
+$schema: 'https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json'
+name: 'I<3LA'
+scopeName: source.alola
+
+patterns:
+- { include: "#separator" }
+- { include: "#directive" }
+- { include: "#declaration"}
+- { include: "#statement" }
+
+# lessons learnt:
+# * no nested repository supported
+# * patterns may fail if nested patterns' include-reference is faulty ??
+# * nested patterns may conflict with each other. Avoid conflicts! Sometimes they appear like not evaluated in expected order.
+# * matching [;\f\r\n]|$ as subrule may stop parent rules (matrixExpression in my case) after the newline
+#   only [;\f]|\R works. [;\f]|$ doesn't work either but requires only one (not two) ; before newline to prevent breakage
+# * a name for all nested patterns requires contentName and begin/end , begin/while
+# * regex errors:
+#   forgot (?x),
+#   redundant `'` at end of folded string literals
+#   using `*` instead of `+`
+#   use [^`]* instead of .*?
+#   \G doesn't match the end of the begin match in end patterns
+#   a capture may not include a line terminator when the match stopped at `$` and so \R will not match
+#   unbalanced parentheses (which negatively affects all patterns in the same pattern array)
+#   Oniguruma conditional expressions don't work in lookbehind, they also don't allow multiple toplevel bars (use parentheses)
+#   JavaScript Regex to find all names not ending in "alola": /name: [\w\d.\-]+(?<!alola)(?![\w\d.\-])/
+
+# unfortunately, js-yaml has a stupid defect which does not ignore # inside multi-line strings (they treated as comments).
+# BUT it does ignore it on the first line below the fold `>` symbol??
+# Folded strings divided by commented line will be split and only the previous part will belong to the string literal??
+
+# uniguruma regex' lookbehind is very limited, it doesn't allow variable length matches!!
+
+# textmate grammars don't allow Regexes to match multi line construct without begin-end or begin-while
+# begin-while is only for matching whole text-lines, not useful here, therefore requires begin-end
+repository:
+    separator:
+        name: keyword.other.separator.alola
+        match: '[;\f]|$'
+
+    listSeparator:
+        name: keyword.other.separator.list.alola
+        match: ','
+
+    matrixSeparator:
+        name: keyword.other.separator.cross.alola
+        match: '×'
+
+    directive:
+        name: meta.directive.alola
+        match: '(?x) ((?<= [;\f] )|^) ((?>[^;\f`]|`[^`]*`)*?) \b from \b ((?>[^;\f`]|`[^`]*`)+?) (?= [;\f]|$ )'
+        captures:
+            "0":
+                patterns:
+                - { include: "#importV1" }
+                - { include: "#importV2" }
+
+    importV1:
+        name: meta.directive.import.1.alola
+        match: >
+            (?x)(?>(?<=[;\f])|^) [ \t]*
+            \b(from)\b ((?>[^;\f`]|`[^`]*`)+?)
+            (:) ((?>[^;\f`]|`[^`]*`)+?)
+            (?=[;\f]|$)
+        captures:
+            "1": { patterns: [ { include: "#declarationKeyword" } ] }
+            "2": { patterns: [ { include: "#packageName" } ] }
+            "3": { name: keyword.other.colon.alola } # one of 5 meanings of ':'
+            "4":
+                patterns:
+                - { include: "#importedName" }
+                - { include: "#listSeparator" }
+
+    importedName:
+        name: variable.name.alola
+        match: '\b(?!\d)[[:alnum:]]+\b'
+    packageName:
+        name: support.variable.package.alola
+        match: '\b(?!\d)[[:alnum:]]+\b'
+
+    importV2:
+        name: meta.directive.import.2.alola
+        match: >
+            (?x)(?>(?<=[;\f])|^) [ \t]*+
+            ((?>[^;\f`]|`[^`]*`)+?) [ \t]*+
+            \b(from)\b ((?>[^;(\f`]|`[^`]*`)+?)
+            (?: (\() ((?>[^;\f`]|`[^`]*`)*?) (\)) [ \t]* )?
+            (?=[;\f]|$)
+        captures:
+            "1":
+                name: meta.directive.import.names.alola
+                patterns:
+                - { include: "#importedName2" }
+                - { include: "#listSeparator" }
+            "2": { patterns: [ { include: "#declarationKeyword" } ] }
+            "3":
+                name: meta.directive.import.package.alola
+                patterns: [ { include: "#packageName2" } ]
+            "4": { name: keyword.other.paren.open.alola }
+            "5":
+                name: meta.directive.import.parameters.alola
+                patterns:
+                - { include: "#parameterName" }
+                - { include: "#listSeparator" }
+            "6": { name: keyword.other.paren.close.alola }
+
+    importedName2:
+        name: variable.name.alola
+        match: '(?x)(?> \b(?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+\b | ((?>`[^`]*`)) )'
+        captures:
+            "1": { name: string.quoted.single.alola }
+    packageName2:
+        name: support.variable.package.alola
+        match: '(?x)(?> \b(?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+\b | ((?>`[^`]*`)) )'
+        captures:
+            "1": { name: string.quoted.single.alola }
+    parameterName:
+        name: variable.parameter.alola
+        match: '(?x)(?> \b(?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+\b | ((?>`[^`]*`)) )'
+        captures:
+            "1": { name: string.quoted.single.alola }
+
+    declaration:
+        patterns:
+        - { include: "#declarationBlock" }
+        -
+            name: meta.declaration.alola
+            begin: >
+                (?x)(?: (?<= [;\f] ) | ^ )
+                ( (?>
+                    (?!(?<![\p{Ll}\p{Lu}\p{Lo}\p{M}])(?:sum|int|(?:arg)?(?:max|min))(?=_)) [^;\f`∑∫{=] |
+                    `[^`]*`
+                )+? ) (
+                    ∈ |
+                    : [ \t]* (?= [ℝℤ{∅] | \b matrix \b | \b vector \b | \b scalar \b | (?=[;\f]|$) )
+                )
+            end: '(?=[;\f]|$)'
+            beginCaptures:
+                "1":
+                    patterns:
+                    - { name: entity.name.alola, include: "#variableNameWithSubscript" }
+                    - { include: "#listSeparator" }
+                "2": { name: keyword.operator.in.alola }
+            patterns:
+            - { include: "#type" }
+            - { include: "#comment" }
+
+    declarationBlock:
+        name: meta.declaration.alola
+        match: '(?x)(?:(?<= [;\f])|^) [ \t]* \b( where | given ) [ \t]* (?= [;\f]|$)'
+        captures:
+            "1": { patterns: [ { include: "#declarationKeyword" } ] }
+
+    emptyStatement:
+        name: meta.statement.empty.alola
+        match: '(?x)(?: (?<= [;\f] ) | ^ ) [ \t]* (?=[;\f]|$)'
+
+    statement:
+        patterns:
+        -
+            name: meta.statement.assignment.alola
+            begin: >
+                (?x)(?: (?<= [;\f] ) | ^ )
+                ( (?>
+                    (?! (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}]) (?:sum|int|(?:arg)?(?:max|min))(?=_)) [^;\f`∑∫{=] |
+                    `[^`]*`
+                )+? )
+                ((?<![<>=!])[+]?=)
+            end: '(?=[;\f]|$)' # certain multi-line optimization rules may consume the `\R` before the end is match
+            beginCaptures:
+                "1":
+                    patterns:
+                    - { include: "#variableNameWithSubscript" }
+                    - { include: "#listSeparator" }
+                "2": { name: keyword.operator.assignment.alola }
+            patterns:
+            - { include: "#sparseMatrixExpression" }
+            - { include: "#withInitialStatements" }
+            - { include: "#optimizeQuantifier" }
+            - { include: "#optimizationConstraint" }
+            - { include: "#operatorExpression" }
+        - { include: "#emptyStatement" }
+        -
+            name: meta.statement.return.alola
+            begin: > # fallback value
+                (?x) (?: (?<= [;\f] ) | ^ )
+                (?! ((?>[^;\f`]|`[^`]*`)*?) \b from \b )
+                (?! [ \t]* \b( where | given )\b )
+                (?! ( (?>
+                        (?! (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}]) (?:sum|int|(?:arg)?(?:max|min))(?=_)) [^;\f`∑∫{=] |
+                        `[^`]*`
+                    )+? )
+                    (?:
+                        (∈ | : [ \t]* (?= [ℝℤ{∅] | \b matrix \b | \b vector \b | \b scalar \b )) |
+                        ((?<![<>=!])[+]?=)
+                    )
+                )
+                (?! [ \t]* (?=[;\f]|$) )
+            end: '(?=[;\f]|$)'
+            patterns:
+            - { include: "#sparseMatrixExpression" }
+            - { include: "#withInitialStatements" }
+            - { include: "#optimizeQuantifier" }
+            - { include: "#optimizationConstraint" }
+            - { include: "#conditionExpression" } # this statement could be an optimization constraint
+
+    constant:
+        name: support.constant.alola
+        match: >
+            (?x)(?<![\p{Ll}\p{Lu}\p{Lo}\p{M}])
+            [πe]
+            (?![\p{Ll}\p{Lu}\p{Lo}\p{M}\d])
+
+    variableLetter:
+        name: variable.name.letter.alola
+        match: >
+            (?x)
+            [\p{Lu}\p{Ll}\p{Lo}]\p{M}* |
+            (?<=[\p{Lu}\p{Ll}\p{Lo}\p{M}])\d
+        captures:
+            "0": { name: constant.character.alola }
+
+    variableName:
+        patterns:
+        - { include: "variableLetter" }
+        -
+            name: variable.name.alola
+            match: '(?x) ( (?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+ ) | (`[^`]*`)'
+            captures:
+                "3": { patterns: [ { include: "#symbol" } ] }
+
+    symbol:
+        name: string.quoted.single.alola
+        match: '(`)([^`]*)(`)'
+
+    variableNameWithSubscript:
+        patterns:
+        - { include: "#constant" }
+        -
+            begin: '(?x)(?= [\p{Ll}\p{Lu}\p{Lo}]|`)'
+            end: '(?=)'
+            applyEndPatternLast: 1
+            patterns:
+            - { include: "#variableName" }
+            - { include: "#variableSubscript" }
+
+    variableSubscript:
+        name: meta.variable.subscript.alola
+        match: >
+            (?x)(?<= [\p{Ll}\p{Lu}\p{Lo}\p{M}\d`] )
+            (?>
+                ([₀-₉]+) |
+                (_) (?> (\*) | (\d+) | ( (?=[\p{L}])[\p{Lu}\p{Ll}\p{Lo}\p{M}\d]+ ) | (`[^`]*`) )
+            )
+            (?>
+                ((?<=[`*])|,) (?: ([₀-₉]+) | (\*) | (\d+) | ( (?=[\p{L}])[\p{Lu}\p{Ll}\p{Lo}\p{M}\d]+ ) | (`[^`]*`) )
+            )*
+        captures:
+            "1": { name: constant.numeric.subscript.alola }
+            "2": { name: keyword.other.subscript.alola }
+            "3": { name: keyword.other.subscript.star.alola }
+            "4": { name: constant.numeric.alola }
+            "5": { name: variable.other.alola }
+            "6": { patterns: [ { include: "#symbol" } ] }
+            "7": { name: keyword.other.subscript.comma.alola }
+            "8": { name: constant.numeric.subscript.alola }
+            "9": { name: keyword.other.subscript.star.alola }
+            "10": { name: constant.numeric.alola }
+            "11": { name: variable.other.alola }
+            "12": { patterns: [ { include: "#symbol" } ] }
+
+    functionName:
+        name: support.function.alola
+        match: >
+            (?x)(`?)(?<![\p{Ll}\p{Lu}\p{Lo}\p{M}])(
+            trace|tr|vec|diag|eig|conj|Re|Im|inv|det|svd|rank|null|orth|qr|
+            sin|asin|arcsin|sinh|asinh|arsinh|cos|acos|arccos|cosh|acosh|arcosh|tan|atan|arctan|atan2|tanh|atanh|artanh|cot|sec|csc|exp|log₂|log₁₀|log_2|log_10|log|ln|sqrt
+            )(\b|\k<1>)
+
+    declarationKeyword:
+        name: keyword.control.declaration.alola
+        match: '\b(where|given|from)\b'
+
+    typeAttribute:
+        name: support.type.property-name.alola
+        match: '\b(index|sparse)\b'
+
+    type:
+        name: meta.expression.type.alola
+        begin: '(?x) (?= [ℝℤ{∅] | \b matrix \b | \b vector \b | \b scalar \b )'
+        end: >
+            (?x) (?<![ \t])[ \t]*+
+            (?! [ℝℤ{∅] | \b matrix \b | \b vector \b | \b scalar \b | -> | [→,×x] |
+                ; (?= [ \t]* (?> [ℝℤ{∅] | \b matrix \b | \b vector \b | \b scalar \b ) )
+            )
+            ( (?> (?: \b index \b | \b sparse \b ) [ \t]*)* )
+        endCaptures:
+            "1": { patterns: [ { include: "#typeAttribute" } ] }
+        patterns:
+        - { include: "#matrixType" }
+        - { include: "#setType" }
+        - { include: "#exponentType" }
+        - { include: "#functionOperator" }
+
+    scalarType:
+        name: support.type.scalar.alola
+        match: '(?x) ([ℝℤ] | \b scalar \b)'
+
+    typeSuperscript:
+        patterns:
+        -
+            name: meta.expression.type.superscript.alola
+            begin: '(?x) (\^) | (?=[\d\p{Ll}\p{Lu}\p{Lo}]) | (?= [¹²³⁰⁴-⁹] )'
+            end: '(?=)'  # no whitespace
+            applyEndPatternLast: 1
+            beginCaptures:
+                "1": { name: keyword.operator.superscript.alola }
+            endCaptures:
+                "1": { name: keyword.other.paren.close.alola }
+            patterns:
+            - { include: "#superscriptNumber" }
+            - { include: "#operatorSubexpression" }
+        -
+            name: meta.expression.type.superscript.alola
+            begin: '(?x) (\^) ( \( )'
+            end: '(\))' 
+            beginCaptures:
+                "1": { name: keyword.operator.superscript.alola }
+                "2": { name: keyword.other.paren.open.alola }
+            endCaptures:
+                "1": { name: keyword.other.paren.close.alola }
+            patterns:
+            - { include: "#arithmeticExpression" }
+            - { include: "#matrixSeparator" }
+
+    exponentType: # can also be a scalar type with implicit exponent ¹
+        begin: '(?x) [ \t]* ([ℝℤ] | \b scalar \b) (?= [¹²³⁰⁴-⁹^]? )'
+        end: '(?x)(?! [¹²³⁰⁴-⁹^] )'
+        beginCaptures:
+            "1": { patterns: [ { include: "#scalarType" } ] }
+        patterns:
+        - { include: "#typeSuperscript" }
+
+    setType:
+        patterns:
+        -
+            name: support.type.set.alola
+            match: '∅'
+        -
+            begin: '\{'
+            end: '\}'
+            beginCaptures:
+                "0": { keyword.other.brace.open.alola }
+            endCaptures:
+                "0": { keyword.other.brace.close.alola }
+            patterns:
+            - { include: "#type" }
+
+    matrixType:
+        name: meta.type.matrix.alola
+        begin: '(?x)\b (?: ( matrix ) | ( vector ) ) [ \t]* ( \( )'
+        end: '\)'
+        beginCaptures:
+            "1": { name: support.type.matrix.alola }
+            "2": { name: support.type.vector.alola }
+            "3": { name: keyword.other.paren.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.paren.close.alola }
+        patterns:
+        - { include: "#arithmeticExpression" }
+        - { include: "#listSeparator" }
+
+    functionOperator:
+        name: keyword.operator.type.function.alola
+        match: '(?x)(->|[→×,;]|\b x \b)'  # the left \b is not even needed but I suspect someone could change it later
+
+    comment:
+        name: comment.line.colon.alola
+        # oniguruma unfortunately doesn't allow for non-trivial lookbehinds
+        # so this rule MAY NOT be used together with other rules that could start with `:`
+        match: '(?x) (:) ([^;\f]*) (?:(?= [;\f])|$)'
+        captures:
+            "1": { name: keyword.other.colon.alola }
+
+    prefixOperator:
+        match: '(?x) ([√∂])'
+        captures:
+            "1": { name: keyword.operator.unary.prefix.alola }
+
+    suffixOperator:
+        match: '(?x) ([⁻⁺]?[¹²³⁰⁴-⁹]+ | [⁺ᵀ] | \^\(\s*-1\s*\) | \^\+ (?![\p{Ll}\p{Lu}\p{Lo}\d(\[⟨<𝟙`]) | \^T (?![\p{Ll}\p{Lu}\p{Lo}\d]) )'
+        captures:
+            "1": { name: keyword.operator.unary.suffix.alola }
+
+    unaryOperator:
+        patterns:
+        - { include: "#prefixOperator" }
+        - { include: "#suffixOperator" }
+
+    # this is used by matrixElementExpression and may not contain the sumQuantifier
+    operator: # unary plus/minus must be treated extra, no assignment operator
+        patterns:
+        - { include: "#unaryOperator" }
+        -
+            match: >
+                (?x)
+                (
+                    [+\-±∓·*×⊗∘/\\÷^=] |  # there could also be unary operators here but I don't bother distinguishing it with regex
+                    : (?! [ \t]* (?= [ℝℤ{∅] | \b matrix \b | \b vector \b | \b scalar \b | (?=[;\f]|$) ) ) |
+                    <(?!=) | (?<![-=])>  # scalarproduct, the comma may lead to unexpected conflicts, omitted here
+                )
+            captures:
+                "1": { name: keyword.operator.binary.alola }
+
+    relation: # no simple angled brackets, they have multiple meanings
+        #match: '(?x) (<=|≤|⩽|<|>=|≥|⩾|>|==?|!=|≠|[:∈]|∉|∧|∨) | (\b and \b|\b or \b)  |  (\b not \b|¬) )'
+        match: '(?x) (<=|≤|⩽|<|>=|≥|⩾|>|==?|!=|≠|[:∈]|∉|∧|∨) | (\b and \b|\b or \b)'
+        captures:
+            "1": { name: keyword.operator.binary.relation.alola }
+            "2": { name: keyword.control.binary.relation.alola }
+            "3": { name: keyword.operator.unary.relation.alola }
+
+    multiplicationOperator:
+        match: '([·÷/])'
+        captures:
+            "1": { name: keyword.operator.binary.alola }
+
+    sumQuantifier:
+        patterns:
+        -
+            name: meta.expression.sum.alola
+            begin: '(?x) ( (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}]) sum (?=_) | ∑ ) ( _ ) (?=[\p{Ll}\p{Lu}\p{Lo}`(])'
+            end: '(?<!_)(?![ \t])'
+            applyEndPatternLast: 1
+            captures:
+                "1": { name: support.function.sum.alola }
+                "2": { name: keyword.other.subscript.alola }
+            patterns:
+            - { include: "#sumIndex" }
+            - { include: "#highOperatorExpression" }
+            - { include: "#multiplicationOperator" }
+        - { include: "#integralQuantifier" }
+
+    integralQuantifier:
+        name: meta.expression.integral.alola
+        match: >
+            (?x) ( (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}]) int (?=_) | ∫ ) ( _ ) (?=[\[\p{Ll}\p{Lu}\p{Lo}`(+\-\d])
+            ([^;\f∂]*)
+            (?: (∂)( (?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+ | `[^`]*` ) )?
+        captures:
+            "1": { name: support.function.sum.alola }
+            "2": { name: keyword.other.subscript.alola }
+            "4": { name: keyword.operator.differential.alola }
+            "5": { patterns: [ { include: "#variableName" } ] }
+            "3":
+                patterns:
+                - { include: "#integralIndex" }
+                - { include: "#operatorExpression" }
+
+    sumIndex:
+        patterns:
+        -
+            name: meta.expression.sum.index.alola
+            begin: '(?<=_)(?=[\p{Ll}\p{Lu}\p{Lo}`])'
+            end: '(?![\p{Ll}\p{Lu}\p{Lo}`])'
+            patterns:
+            - { include: "#variableName" }
+        -
+            name: meta.expression.sum.index.alola
+            begin: '(?<=_)\('
+            end: '\)'
+            beginCaptures:
+                "0": { name: keyword.other.paren.open.alola }
+            endCaptures:
+                "0": { name: keyword.other.paren.close.alola }
+            patterns:
+            - { include: "#conditionExpression" }
+            -
+                name: keyword.control.for.alola
+                match: '\b(for)\b'
+            - { include: "#listSeparator" }
+            # precisely strict syntax but would require maintenance later for syntax additions
+            #- { include: "#variableName" }
+            #-
+            #    begin: '([:∈])'
+            #    end: '(?=\))'
+            #    beginCaptures:
+            #        "1": { name: keyword.operator.binary.relation.alola }
+            #    patterns:
+            #    - { include: "#functionCallExpression" }
+            #    - { include: "#variableName" }
+            #-
+            #    begin: '\b(for)\b'
+            #    end: '(?=\))'
+            #    beginCaptures:
+            #        "1": { name: keyword.control.for.alola }
+            #    patterns:
+            #    - { include: "#conditionExpression" }
+
+    integralIndex:
+        patterns:
+        -
+            name: meta.expression.integral.index.alola
+            begin: '(?<=_)\['
+            end: '\]'
+            beginCaptures:
+                "0": { name: keyword.other.bracket.open.alola }
+            endCaptures:
+                "0": { name: keyword.other.bracket.close.alola }
+            patterns:
+                - { include: "#operatorExpression" }
+                - { include: "#listSeparator" }
+        -
+            name: meta.expression.integral.index.alola
+            begin: '(?<=_)'
+            end: '(?![+\-\d\p{Ll}\p{Lu}\p{Lo}`(^])'
+            patterns:
+            - { include: "#exponentExpression" }
+            - { include: "#unaryExpression" }
+
+    optimizeQuantifier:
+        name: meta.expression.optimize.alola
+        begin: '(?x) (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}]) ( (?: arg )?(?: min|max) ) ( _ ) (?=\()'
+        end: '(?![ \t])'
+        applyEndPatternLast: 1
+        beginCaptures:
+            "1": { name: support.function.optimize.alola }
+            "2": { name: keyword.other.subscript.alola }
+        patterns:
+        -
+            name: meta.expression.optimize.index.alola
+            begin: '\('
+            end: '\)'
+            beginCaptures:
+                "0": { name: keyword.other.paren.open.alola }
+            endCaptures:
+                "0": { name: keyword.other.paren.close.alola }
+            patterns:
+            - { include: "#conditionExpression" }
+            - { include: "#listSeparator" }
+        - { include: "#operatorExpression" }
+
+    withInitialStatements:
+        name: keyword.control.with-initial.alola
+        match: '(?x)\b with [ \t]+ initial \b'
+
+    optimizationConstraint:
+        begin: >
+            (?x) \b(
+                subject [ \t]+ to | # where | given |
+                s\.t\.
+            )\b
+        end: '(?x)(?:(?<=[;\f])|^) [ \t]* (?=[;\f]|$)'  # I use an empty statement as separator
+        beginCaptures:
+            "1": { name: keyword.control.constraint.alola }
+        patterns:
+        - { include: "#conditionExpression" }
+        - { include: "#separator" }
+
+    arithmeticOperator:
+        name: keyword.operator.arithmetic.alola
+        match: '[+\-·÷/]'
+
+    arithmeticSubexpression:
+        begin: '\('
+        end: '\)'
+        patterns:
+        - { include: "#arithmeticExpression" }
+
+    arithmeticExpression:
+        patterns:
+        - { include: "#arithmeticOperator" }
+        - { include: "#arithmeticSubexpression" }
+        - { include: "#variableNameWithSubscript" }
+        - { include: "#number" }
+
+    superscriptOperator:
+        name: keyword.operator.superscript.alola
+        match: '[⁺⁻˜˟]'
+
+    superscriptNumber:
+        name: constant.numeric.superscript.alola
+        match: '[¹²³⁰⁴-⁹]+'
+
+    superscriptVariable:
+        name: variable.name.superscript.alola
+        match: '(?![¹²³⁰⁴-⁹])[ʰʲʳʷʸˡˢˣˠᴬ-ᴱᴳ-ᴺᴼᴾ-ᵃᵅᵇᵈᵉᵋᵍᵏᵐᵑᵒᵖ-ᵘᵛᵝ-ᵸᶜᶞᶠᶢᶥᶦᶫᶰ-ᶲᶷ-ᶻᶾ-ⱽꚜꚝꝰꟹ¹²³⁰⁴-⁹]+'
+
+    superscriptAtom:
+        patterns:
+        - { include: "#superscriptNumber" }
+        - { include: "#superscriptVariable" }
+
+    superscriptSubexpression:
+        begin: '⁽'
+        end: '⁾'
+        beginCaptures:
+            "0": { name: keyword.other.superscript.paren.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.superscript.paren.close.alola }
+        patterns:
+        - { include: "#superscriptExpression" }
+        - { include: "#superscriptOperator" }
+        - { include: "#superscriptAtom" }
+
+    superscriptExpression:
+        patterns:
+        - { include: "#superscriptSubexpression" }
+        - { include: "#superscriptOperator" }
+        - { include: "#superscriptAtom" }
+
+    exponentExpression:
+        patterns:
+        - { include: "#superscriptExpression" }
+        -
+            name: meta.expression.exponent.alola
+            begin: '(?x) ( \^ ) ([+\-±∓])? (?![ \t;]|$)'
+            end: '(?<!\^)'  # the whitespace negation prevents this rule to match slightly before patterns below
+            applyEndPatternLast: 1
+            beginCaptures:
+                "1": { name: keyword.operator.power.alola }
+                "2": { name: keyword.operator.unary.prefix.alola }
+            patterns:
+            - { include: "#highOperatorExpression" }
+
+    highOperator:
+        patterns:
+        -
+            #match: '[*×:⊗∘\\^]|<(?!=)|(?<![-=])>'  # Frobenius operator conflicts with element-of operator and if-condition in sparse matrices
+            match: '(?x) [ \t]* ( [*×:⊗∘\\^] | <(?!=) | (?<![-=])> ) [ \t]*'  # whitespace padding to prevent early application of end pattern
+            captures:
+                "1": { name: keyword.operator.binary.alola }
+        - { include: "#unaryOperator" }
+
+    highOperatorExpression:
+        patterns:
+        - { include: "#operatorSubexpression" }
+        - { include: "#highOperator" }
+
+    subscriptOperator:
+        name: keyword.operator.subscript.alola
+        match: '[₊₋⨧]'
+
+    subscriptNumber:
+        name: constant.numeric.subscript.alola
+        match: '[₀-₉]+'
+
+    subscriptVariable:
+        name: variable.name.subscript.alola
+        match: '(?![₀-₉])[ᵢ-₉ₐ-ₜⱼ]'
+
+    subscriptAtom:
+        patterns:
+        - { include: "#subscriptVariable" }
+        - { include: "#subscriptNumber" }
+
+    subscriptSubexpression:
+        name: meta.expression.subscript.paren.alola
+        begin: '₍'
+        end: '₎'
+        beginCaptures:
+            "0": { name: keyword.other.subscript.paren.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.subscript.paren.close.alola }
+        patterns:
+        - { include: "#subscriptExpression" }
+        - { include: "#subscriptOperator" }
+        - { include: "#subscriptAtom" }
+
+    subscriptExpression:
+        patterns:
+        - { include: "#subscriptSubexpression" }
+        - { include: "#subscriptOperator" }
+        - { include: "#subscriptAtom" }
+
+    # without binary operators
+    unaryExpression:
+        patterns:
+        - { include: "#prefixOperator" }
+        -
+            name: meta.expression.unary.prefix.alola
+            match: '[+\-±∓]'
+            captures:
+                "0": { name: keyword.operator.unary.prefix.alola }
+        -
+            name: meta.expression.unary.alola
+            begin: '(?![ \t√∂+\-±∓])'
+            end: '(?=)'
+            applyEndPatternLast: 1
+            patterns:
+            - { include: "#operatorSubexpression" }
+            - { include: "#suffixOperator" } # juxtaposed expressions are treated as one unary expression (I don't know better)
+
+    operatorExpression:
+        patterns:
+        - { include: "#sumQuantifier" }
+        - { include: "#operatorSubexpression" }
+        - { include: "#operator" }
+
+    operatorSubexpression:
+        patterns:
+        - { include: "#vectorExpression" }
+        - { include: "#parenExpression" }
+        - { include: "#functionCallExpression" }
+        - { include: "#matrixExpression" }
+        - { include: "#normExpression" }
+        - { include: "#scalprodExpression" }
+        - { include: "#atomicExpression" }
+
+    conditionExpression:
+        patterns:
+        - { include: "#sumQuantifier" }
+        - { include: "#relation" } # contains keyword operators which must be matched before variables
+        - { include: "#operator" }
+        - { include: "#conditionSubexpression" }
+
+    conditionSubexpression:
+        patterns:
+        - { include: "#vectorExpression" }
+        - { include: "#parenConditionExpression" }
+        - { include: "#functionCallExpression" }
+        - { include: "#matrixExpression" }
+        - { include: "#normExpression" }
+        - { include: "#scalprodExpression2" }  # due to ambiguity with relations, scalarproduct does not support < >
+        - { include: "#atomicExpression" }
+
+    parenConditionExpression:
+        name: meta.expression.condition.alola
+        begin: '\('
+        end: '\)'
+        patterns:
+        - { include: "#conditionExpression" }
+
+    # as I tested, I<3LA doesn't compile with whitespace in between
+    functionCallExpression:
+        name: meta.expression.function.alola
+        begin: '(?x)( (?: (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}])(?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+ | `[^`]*` ) (?: _\d+ | [₀-₉]+ )? ) ( \( )'
+        end: '\)'
+        beginCaptures:
+            "1":
+                name: keyword.other.function.alola
+                patterns:
+                - { include: "#functionName" }
+            "2": { name: keyword.other.paren.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.paren.close.alola }
+        patterns:
+        -
+            name: meta.function.parameters.alola
+            patterns:
+            - { include: "#operatorExpression" }
+            - { include: "#listSeparator" }
+            - { include: "#separator" }
+
+    atomicExpression:
+        patterns:
+        - { include: "#number" }
+        - { include: "#variableNameWithSubscript" }
+
+    number:
+        patterns:
+        - { include: "#scalarNumber" }
+        - { include: "#matrixNumber" }
+        - { include: "#otherNumber" }
+
+    scalarNumber:
+        name: constant.numeric.scalar.alola
+        match: '(?<![\p{Ll}\p{Lu}\p{Lo}\p{M}])(?![01]_)\d+'
+
+    otherNumber:
+        name: constant.numeric.other.alola
+        match: '(?!𝟙_)(?>[０-９]+|[𝟎-𝟗]+|[𝟘-𝟡]+|[𝟢-𝟫]+|[𝟬-𝟵]+|[𝟶-𝟿]+)'
+
+    matrixNumber:
+        name: constant.numeric.matrix.alola
+        begin: '(?x) [01𝟙] ( (_) ( \( )? | (?=[₀-₉]) )'
+        end: '(?x) (?(2) ( \) ) | (?<! [_(] ) (?! [ \t]* [,₀-₉\d\p{Ll}\p{Lu}\p{Lo}\p{M}`]) )'
+        beginCaptures:
+            "1": { name: keyword.operator.subscript.alola }
+            "2": { name: keyword.other.paren.open.alola }
+        endCaptures:
+            "1": { name: keyword.other.paren.close.alola }
+        patterns:
+        - { include: "#scalarNumber" }
+        - { include: "#variableNameWithSubscript" }
+        - { include: "#subscriptNumber" }
+        - { include: "#listSeparator" }
+
+    numeric:
+        patterns:
+        - { include: "#scalarNumber" }
+        - { include: "#matrixNumber" }
+        - { include: "#otherNumber" }
+
+    scalprodExpression:
+        patterns:
+        - { include: "#scalprodExpression2" }
+        - 
+            name: meta.expression.scalprod.alola
+            begin: '<'
+            end: '>'
+            beginCaptures:
+                "0": { name: keyword.other.angle.open.alola }
+            endCaptures:
+                "0": { name: keyword.other.angle.close.alola }
+            patterns:
+            - { include: "#operatorExpression" }
+            - { include: "#listSeparator" }
+
+    scalprodExpression2:
+        name: meta.expression.scalprod.alola
+        begin: '⟨'
+        end: '⟩'
+        beginCaptures:
+            "0": { name: keyword.other.angle.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.angle.close.alola }
+        patterns:
+        - { include: "#operatorExpression" }
+        - { include: "#listSeparator" }
+
+    normExpression:
+        name: meta.expression.norm.alola
+        # due to the limited lookbehind, it MUST also match all whitespace in front
+        # a bar after closing `>` is ambiguous, context sensitive, not treating it as opening bar is the most reasonable choice
+        begin: >
+            (?x)
+            (?<= [√∂+\-±∓·*×:⊗∘/\\÷^|∥(⟨<=\[⌈,;] | ^ )
+            [ \t]* (?=
+                (?>\|\||[|∥]) [ \t]*+
+                (?![·*×:⊗∘/\\÷^¹²³⁰⁴-⁹_₀-₉)⟩>=\]⌋,] | $)
+            )
+        end: >
+            (?x)
+            (?! [ \t]* (?:
+                [_₀-₉^¹²³⁰⁴-⁹] |
+                (?>\|\||[|∥]) [ \t]*+
+                (?! [·*×:⊗∘/\\÷^¹²³⁰⁴-⁹_₀-₉)⟩>=\]⌋,] | $)
+            ) )
+        patterns:
+        - { include: "#norm" }
+        - { include: "#normSubscript" }
+        - { include: "#exponentExpression" }
+
+    norm:
+        begin: '(\|\||[|∥])'
+        end: '(?<![√∂+\-±∓·*×:⊗∘/\\÷^ \t])[ \t]*(\1)'
+        beginCaptures:
+            "1": { name: keyword.other.bar.open.alola }
+        endCaptures:
+            "1": { name: keyword.other.bar.close.alola }
+        patterns:
+        - { include: "#operatorExpression" }
+
+    normIndex:
+        patterns:
+        -
+            match: '(?x) (?: (\*) | (∞))'
+            captures:
+                "1": { name: keyword.other.subscript.star.alola }
+                "2": { name: keyword.other.subscript.infinity.alola }
+        - { include: "#scalarNumber" }
+
+    normSubscript:
+        patterns:
+        - { include: "#subscriptNumber" }
+        -
+            name: meta.expression.norm.subscript.alola
+            begin: '_(?!\()'
+            end: '(?<!_)'
+            beginCaptures:
+                "0": { name: keyword.other.subscript.alola }
+            patterns:
+            - { include: "#normIndex" }
+            - { include: "#variableName" }
+        -
+            name: meta.expression.norm.subscript.alola
+            begin: '(_)(\()'
+            end: '\)'
+            beginCaptures:
+                "1": { name: keyword.other.subscript.alola }
+                "2": { name: keyword.other.paren.open.alola }
+            endCaptures:
+                "0": { name: keyword.other.paren.close.alola }
+            patterns:
+            - { include: "#normIndex" }
+            - { include: "#variableNameWithSubscript" }
+
+    parenExpression:
+        name: meta.expression.group.alola
+        # for disambiguation with vectorExpression make sure, no comma between expressions
+        begin: >
+            (?x) \(
+            #(?! [^(),]+
+            #    (?'group' (?> \( [^()]* \g'group' \) [^(),]* )* )
+            #, )
+        end: '\)'
+        beginCaptures:
+            "0": { name: keyword.other.paren.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.paren.close.alola }
+        patterns:
+        - { include: "#operatorExpression" }
+        - # for multi-line vector literals
+            name: keyword.other.separator.vector.alola
+            match: ','
+
+    ## unfortunately there is no way to check a vector literal over multiple lines
+    ## this rule is only for single-liners but interferes with matrices
+    vectorExpression:
+        name: meta.expression.vector.alola
+        # checks that there is a comma before the last `)`
+        # this can be done in one regex because expressions don't contain newlines
+        begin: >
+            (?x) \(
+            (?= [^(),]+
+                (?'group' (?> \( [^()]* \g'group' \) [^(),]* )* )
+            , )
+        end: '\)'
+        beginCaptures:
+            "0": { name: keyword.other.paren.open.alola }
+        endCaptures:
+            "0": { name: keyword.other.paren.close.alola }
+        patterns:
+        - { include: "#operatorExpression" }
+        - { include: "#listSeparator" }
+
+    # I don't know why this is required but it fixes the bug
+    # maybe because matching `$` would not consume the line terminator and the next search doesn't start with `^` anchor??
+    matrixRowSeparator:
+        name: keyword.other.separator.alola
+        match: '[;\f]|\R'
+
+    matrixExpression:
+        patterns:   
+        -
+            name: meta.expression.matrix.alola
+            begin: '(?=(⌈))'
+            end: '(?<=(⌋))'
+            patterns:
+            - { include: "#matrixRowExpression" }
+            - { include: "#matrixRowSeparator" }
+        -
+            name: meta.expression.matrix.alola
+            begin: '(?=(\[))'
+            end: '(?<=(\]))'
+            patterns:
+            - { include: "#matrixRowExpression" }
+            - { include: "#matrixRowSeparator" }
+
+    matrixRowElements:
+        patterns:
+        - { include: "#matrixElementExpression" }
+        - { include: "#listSeparator" }
+
+    matrixRowExpression1:
+        name: meta.expression.matrix.row.1.alola
+        begin: '\['
+        end: '(?x) (\]) | (?=[;\f]|$)'
+        beginCaptures:
+            "0": { name: keyword.other.matrix.open.alola }
+        endCaptures:
+            "1": { name: keyword.other.matrix.close.alola }
+        patterns:
+        - { include: "#matrixRowElements" }
+
+    matrixRowExpression2:
+        name: meta.expression.matrix.row.2.alola
+        begin: '⌈'
+        end: '(?x) (?> (⌉) [ \t]* )? (?=[;\f]|$)'
+        beginCaptures:
+            "0": { name: keyword.other.matrix.upper-left.alola }
+        endCaptures:
+            "1": { name: keyword.other.matrix.upper-right.alola }
+        patterns:
+        - { include: "#matrixRowElements" }
+
+    matrixRowExpression3:
+        name: meta.expression.matrix.row.3.alola
+        match: '(?x) (?:(?<=[;\f])|^) [ \t]* (\|) ([^;]*) (\|) [ \t]* (?= [;\f] | $)' # matched only as pair
+        captures:
+            "1": { name: keyword.other.matrix.left.alola }
+            "3": { name: keyword.other.matrix.right.alola }
+            "2":
+                patterns:
+                - { include: "#matrixRowElements" }
+
+    matrixRowExpression4:
+        name: meta.expression.matrix.row.4.alola
+        begin: >
+            (?x) (?:(?<=[;\f]) | ^) [ \t]*+ 
+            (?> (⌊) |
+                (?=\S)(?! \| [^;]* \| [ \t]* (?= [;\f] | $) )
+            )
+        end: '(?x)(?(1) (⌋) | (?: (⌋) | (\]) | (?=[;\f]|$) ) )'
+        beginCaptures:
+            "1": { name: keyword.other.matrix.lower-left.alola }
+        endCaptures:
+            "1": { name: keyword.other.matrix.lower-right.alola }
+            "2": { name: keyword.other.matrix.lower-right.alola }
+            "3": { name: keyword.other.matrix.close.alola }
+        patterns:
+        - { include: "#matrixRowElements" }
+
+    matrixRowExpression:
+        patterns:
+        - { include: "#matrixRowExpression1" }
+        - { include: "#matrixRowExpression2" }
+        - { include: "#matrixRowExpression3" }
+        - { include: "#matrixRowExpression4" }
+
+    matrixNormExpression: # treat whitespace as separator
+        name: meta.expression.norm.alola
+        begin: >
+            (?x)
+            (?:(?<= [√∂+\-±∓·*×:⊗∘/\\÷^|∥(⟨<=\[⌈, \t;]) | ^ )
+            (?=
+                (?>\|\||[|∥]) [ \t]*+
+                (?! [·*×:⊗∘/\\÷^¹²³⁰⁴-⁹_₀-₉)⟩>=\]⌋,] | $)
+            )
+        end: >
+            (?x)
+            (?! (?:
+                [_₀-₉¹²³⁰⁴-⁹] |
+                \^ (?![ \t]) |
+                (?>\|\||[|∥]) [ \t]*+
+                (?! [·*×:⊗∘/\\÷^¹²³⁰⁴-⁹_₀-₉)⟩>=\]⌋,] | $)
+            ) ) | (?=[ \t\f;]|$)
+        patterns:
+        - { include: "#norm" }
+        - { include: "#normSubscript" }
+        - { include: "#exponentExpression" }
+
+    matrixSumQuantifier: # modified copy of sumQuantifier
+        patterns:
+        -
+            name: meta.expression.sum.alola
+            begin: '(?x) ( (?<![\p{Ll}\p{Lu}\p{Lo}\p{M}]) sum (?=_) | ∑ ) ( _ ) (?=[\p{Ll}\p{Lu}\p{Lo}`(])'
+            end: '(?<!_)(?=)' # no whitespace allowed
+            applyEndPatternLast: 1
+            captures:
+                "1": { name: support.function.sum.alola }
+                "2": { name: keyword.other.subscript.alola }
+            patterns:
+            - { include: "#sumIndex" }
+            #- { include: "#matrixSumExpression" }
+        - { include: "#integralQuantifier" }
+
+    matrixOperatorSubexpression: # no atomic expression
+        patterns:
+        - { include: "#matrixSumQuantifier" }
+        - { include: "#functionCallExpression" }
+        - { include: "#vectorExpression" }
+        - { include: "#parenExpression" }
+        - { include: "#matrixExpression" }
+        - { include: "#scalprodExpression" }
+        - { include: "#matrixNormExpression" }
+
+    matrixElementExpression: # no top-level whitespace allowed
+        patterns:
+        -
+            name: meta.expression.matrix.element.alola
+            match: >
+                (?x)
+                (?>
+                    [^;\f \t,(|∥⟨<\[⌈\p{Ll}\p{Lu}\p{Lo}`∑∫]+ |
+                    (?! (?: sum | int | (?:arg)?(?:min|max) ) (?= _ ) )
+                    (?: (?=[\p{L}])[\p{Ll}\p{Lu}\p{Lo}\p{M}\d]+ | `[^`]*` )
+                    (?! ( _ \d+ | [₀-₉]+ )? \( ) # don't match function calls or quantifiers
+                )+
+            captures:
+                "0":
+                    patterns:
+                    - { include: "#atomicExpression" }
+                    - { include: "#operator" }
+        - { include: "#matrixOperatorSubexpression" }
+
+    # requires multi-line lookahead in general to match cases in the sparse matrix literal
+    # the only thing, this can do is matching single-line cases but too limited
+    sparseMatrixExpression:
+        patterns:
+        -
+            match: '(?x) (?<= =) [ \t]* (\{)'
+            captures:
+                "1": { name: keyword.control.cases.alola }
+            #name: meta.expression.matrix.sparse.alola
+            #end: '(?x) (?<= \b(otherwise)\b ) [ \t]* (?=[;\f]|$) | ...'
+            #patterns:
+            #-
+            #    patterns:
+            #    - { include: "#sparseMatrixCaseIf" }
+            #    - { include: "#sparseMatrixCaseOtherwise" }
+            #- { include: "#emptyStatement" }
+        - { include: "#sparseMatrixCaseIf" }
+        - { include: "#sparseMatrixCaseOtherwise" }
+
+    sparseMatrixCaseIf:
+        name: meta.expression.matrix.sparse.if.alola
+        begin: '\b(if)\b'
+        end: '(?=[;\f]|$)'
+        captures:
+            "1": { name: keyword.control.if.alola }
+        patterns:
+        - { include: "#conditionExpression" }
+
+    # I will not support this because the grammar alone cannot disambiguate the Frobenius operator from the condition separator `:`
+    # What would this condition mean? `a < b : c : d` It becomes undefined if sparse matrix conditions would allow for non-scalar return values
+#    sparseMatrixCaseIf2:
+#        name: meta.expression.matrix.sparse.if.2.alola
+
+    sparseMatrixCaseOtherwise:
+        match: '\b(otherwise)\b'
+        captures:
+            "1": { name: keyword.control.else.alola }
+        #name: meta.expression.matrix.sparse.otherwise.alola
+        #begin: '(?x) (?<=[;\f]|^) (?= (?>[^={\f]+?) \b(otherwise)\b [ \t]* (?=[^;\f]|$) )'
+        #end: '(?=[^;\f]|$)'
+        #patterns:
+        #-
+        #    name: meta.expression.matrix.sparse.otherwise.alola
+        #    match: '(?x) \b(otherwise)\b [ \t]* (?=[^;\f]|$)'
+        #    captures:
+        #        "1": { name: keyword.control.else.alola }
+        #- { include: "#operatorExpression" }
